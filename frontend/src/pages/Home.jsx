@@ -9,6 +9,12 @@ const normalizeSpeechText = (value = "") =>
 const escapeRegExp = (value = "") =>
     value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const splitSpeechWords = (value = "") =>
+    normalizeSpeechText(value)
+        .split(/\s+/)
+        .map((word) => word.trim())
+        .filter(Boolean);
+
 const getEditDistance = (source = "", target = "") => {
     const rows = source.length + 1;
     const cols = target.length + 1;
@@ -34,6 +40,105 @@ const getEditDistance = (source = "", target = "") => {
     }
 
     return dp[source.length][target.length];
+};
+
+const WAKE_WORD_PREFIXES = new Set(["hey", "hi", "hello", "yo", "ok", "okay", "please"]);
+const COMMAND_PREFIX_PATTERN = /^(?:please|can you|could you|would you|will you)\s+/i;
+
+const stripWakeWordPrefixes = (words = []) => {
+    const remainingWords = Array.isArray(words) ? [...words] : [];
+
+    while (remainingWords.length && WAKE_WORD_PREFIXES.has(remainingWords[0])) {
+        remainingWords.shift();
+    }
+
+    return remainingWords;
+};
+
+const tokensRoughlyMatch = (source = "", target = "") => {
+    if (!source || !target) {
+        return false;
+    }
+
+    if (source === target) {
+        return true;
+    }
+
+    const distance = getEditDistance(source, target);
+    if (source.length <= 4 || target.length <= 4) {
+        return distance <= 1;
+    }
+
+    return distance <= 2;
+};
+
+const phrasesRoughlyMatch = (sourceWords = [], targetWords = []) => {
+    if (!sourceWords.length || sourceWords.length !== targetWords.length) {
+        return false;
+    }
+
+    const joinedSource = sourceWords.join(" ");
+    const joinedTarget = targetWords.join(" ");
+
+    if (joinedSource === joinedTarget) {
+        return true;
+    }
+
+    const distance = getEditDistance(joinedSource, joinedTarget);
+    const maxDistance = joinedTarget.length <= 6 ? 1 : joinedTarget.length <= 14 ? 2 : 3;
+    if (distance <= maxDistance) {
+        return true;
+    }
+
+    const matchedWordCount = sourceWords.filter((word, index) =>
+        tokensRoughlyMatch(word, targetWords[index])
+    ).length;
+
+    return matchedWordCount >= Math.max(1, targetWords.length - 1);
+};
+
+const cleanAssistantCommand = (value = "") =>
+    String(value)
+        .replace(COMMAND_PREFIX_PATTERN, "")
+        .trim();
+
+const findWakeWordMatch = (alternatives = [], assistantName = "") => {
+    const assistantWords = splitSpeechWords(assistantName);
+    if (!assistantWords.length) {
+        return null;
+    }
+
+    for (const alternative of alternatives) {
+        const rawTranscriptWords = splitSpeechWords(alternative);
+        const strippedTranscriptWords = stripWakeWordPrefixes(rawTranscriptWords);
+        const candidateWordGroups = [rawTranscriptWords];
+
+        if (strippedTranscriptWords.join(" ") !== rawTranscriptWords.join(" ")) {
+            candidateWordGroups.push(strippedTranscriptWords);
+        }
+
+        for (const transcriptWords of candidateWordGroups) {
+            if (transcriptWords.length < assistantWords.length) {
+                continue;
+            }
+
+            for (let startIndex = 0; startIndex <= transcriptWords.length - assistantWords.length; startIndex += 1) {
+                const candidateWords = transcriptWords.slice(startIndex, startIndex + assistantWords.length);
+                if (!phrasesRoughlyMatch(candidateWords, assistantWords)) {
+                    continue;
+                }
+
+                return {
+                    transcript: String(alternative || "").trim(),
+                    command: cleanAssistantCommand(
+                        transcriptWords.slice(startIndex + assistantWords.length).join(" ")
+                    ),
+                };
+            }
+        }
+    }
+
+    return null;
 };
 
 const buildExternalUrl = (type, userInput = "") => {
@@ -86,12 +191,14 @@ const Home = () => {
     const navigate = useNavigate();
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [assistantReply, setAssistantReply] = useState("");
+    const [isAssistantActive, setIsAssistantActive] = useState(false);
     const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
     const [isMicEnabled, setIsMicEnabled] = useState(true);
     const [listeningState, setListeningState] = useState("Starting microphone...");
     const [lastHeardText, setLastHeardText] = useState("");
     const recognitionRef = useRef(null);
     const assistantActiveRef = useRef(false);
+    const isHandlingCommandRef = useRef(false);
     const isAssistantSpeakingRef = useRef(false);
     const recognitionRunningRef = useRef(false);
     const recognitionRestartTimeoutRef = useRef(null);
@@ -102,6 +209,11 @@ const Home = () => {
     const assistantNameLabelRef = useRef(String(userData?.assistantName || "").trim());
     const assistantDisplayName = userData?.assistantName || "Assistant";
     const assistantImage = userData?.assistantImage;
+
+    const updateAssistantActiveState = (isActive) => {
+        assistantActiveRef.current = isActive;
+        setIsAssistantActive(isActive);
+    };
 
     const startRecognitionSafely = () => {
         if (
@@ -266,9 +378,21 @@ const Home = () => {
     };
 
     const handleAssistantResponse = async (command) => {
-        const data = await geminiResponse(command);
-        console.log("gemini response:", data);
-        handleCommand(data);
+        const normalizedCommand = String(command || "").trim();
+        if (!normalizedCommand || isHandlingCommandRef.current) {
+            return;
+        }
+
+        isHandlingCommandRef.current = true;
+        setListeningState("Processing your request...");
+
+        try {
+            const data = await geminiResponse(normalizedCommand);
+            console.log("gemini response:", data);
+            handleCommand(data);
+        } finally {
+            isHandlingCommandRef.current = false;
+        }
     };
 
     const Logout = async () => {
@@ -328,8 +452,13 @@ const Home = () => {
     }
 
     const handleNewSession = () => {
-        assistantActiveRef.current = false;
+        updateAssistantActiveState(false);
         setAssistantReply("Started a new session.");
+        setListeningState(
+            assistantNameLabelRef.current
+                ? `Listening for ${assistantNameLabelRef.current}`
+                : "Listening..."
+        );
         resetConversationSession();
     };
 
@@ -382,7 +511,7 @@ const Home = () => {
             const lastResult = e.results[e.results.length - 1];
             const transcript = lastResult[0].transcript.trim();
             setLastHeardText(transcript);
-            if (!lastResult.isFinal || isAssistantSpeakingRef.current) {
+            if (!lastResult.isFinal || isAssistantSpeakingRef.current || isHandlingCommandRef.current) {
                 return;
             }
 
@@ -395,39 +524,35 @@ const Home = () => {
             }
 
             const assistantName = assistantNameRef.current;
-            const heardAlternatives = Array.from(lastResult).map((item) => item.transcript.trim());
-            const matchedWakeWordTranscript = heardAlternatives.find((item) => {
-                const normalizedItem = normalizeSpeechText(item);
-                const firstWord = normalizedItem.split(/\s+/)[0] || "";
-
-                return (
-                    assistantName &&
-                    (
-                        normalizedItem.includes(assistantName) ||
-                        getEditDistance(firstWord, assistantName) <= 2
-                    )
-                );
-            });
-            const matchedTranscript = heardAlternatives.find((item) =>
-                assistantName && normalizeSpeechText(item).includes(assistantName)
+            const heardAlternatives = Array.from(lastResult)
+                .map((item) => item.transcript.trim())
+                .filter(Boolean);
+            const wakeWordMatch = findWakeWordMatch(
+                heardAlternatives.length ? heardAlternatives : [transcript],
+                assistantName
             );
-            const hasAssistantName = Boolean(matchedWakeWordTranscript || matchedTranscript);
 
             if (normalizedTranscript.includes("stop listening")) {
-                assistantActiveRef.current = false;
+                updateAssistantActiveState(false);
+                setAssistantReply("Back on standby. Say the assistant name when you want me again.");
+                setListeningState(
+                    assistantNameLabelRef.current
+                        ? `Listening for ${assistantNameLabelRef.current}`
+                        : "Listening..."
+                );
                 console.log("assistant stopped listening");
                 return;
             }
 
-            if (hasAssistantName) {
-                assistantActiveRef.current = true;
-                const wakeTranscript = matchedWakeWordTranscript || matchedTranscript || transcript;
+            if (wakeWordMatch) {
+                updateAssistantActiveState(true);
                 const assistantNamePattern = assistantNameLabelRef.current
                     ? new RegExp(escapeRegExp(assistantNameLabelRef.current), "ig")
                     : null;
-                const cleanedCommand = wakeTranscript
-                    .replace(assistantNamePattern || /$^/, "")
-                    .trim();
+                const cleanedCommand = cleanAssistantCommand(
+                    wakeWordMatch.command ||
+                    wakeWordMatch.transcript.replace(assistantNamePattern || /$^/, "").trim()
+                );
 
                 if (!cleanedCommand) {
                     console.log("assistant activated");
@@ -442,6 +567,7 @@ const Home = () => {
             }
 
             if (assistantActiveRef.current) {
+                setListeningState("Processing your request...");
                 await handleAssistantResponse(transcript);
             }
         }
@@ -476,7 +602,8 @@ const Home = () => {
         return () => {
             recognition.onend = null;
             shouldAutoRestartRef.current = false;
-            assistantActiveRef.current = false;
+            updateAssistantActiveState(false);
+            isHandlingCommandRef.current = false;
             recognitionRunningRef.current = false;
             window.clearTimeout(recognitionRestartTimeoutRef.current);
             recognition.stop();
@@ -530,8 +657,8 @@ const Home = () => {
                             <span className={`status-pill ${isMicEnabled ? "status-pill-cyan" : "status-pill-rose"}`}>
                                 {isMicEnabled ? "Microphone armed" : "Microphone paused"}
                             </span>
-                            <span className={`status-pill ${assistantActiveRef.current ? "status-pill-blue" : "status-pill-amber"}`}>
-                                {assistantActiveRef.current ? "Assistant focused" : "Wake-word standby"}
+                            <span className={`status-pill ${isAssistantActive ? "status-pill-blue" : "status-pill-amber"}`}>
+                                {isAssistantActive ? "Assistant focused" : "Wake-word standby"}
                             </span>
                             <span className={`status-pill ${isAssistantSpeaking ? "status-pill-cyan" : "status-pill-blue"}`}>
                                 {isAssistantSpeaking ? "Voice output live" : "Awaiting command"}
