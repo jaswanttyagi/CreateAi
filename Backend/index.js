@@ -25,7 +25,6 @@ if (isProduction) {
 
 app.disable("x-powered-by");
 app.use(cors(corsOptionsDelegate));
-app.options("*", cors(corsOptionsDelegate));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
