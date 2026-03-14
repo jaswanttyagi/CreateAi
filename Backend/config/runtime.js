@@ -85,6 +85,7 @@ const corsOptionsDelegate = (req, callback) => {
     {
       origin: isAllowedOrigin,
       credentials: true,
+      methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     }
   );
 };

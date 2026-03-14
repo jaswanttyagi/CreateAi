@@ -66,6 +66,7 @@ const Signpage = () => {
                             type="email"
                             placeholder='Enter your email'
                             required
+                            autoComplete="email"
                             onChange={(e) => setEmail(e.target.value)}
                             value={email}
                             className='w-full rounded-xl border border-white/25 bg-white/95 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40 sm:text-base'
@@ -76,6 +77,7 @@ const Signpage = () => {
                                 type={showPassword ? "text" : "password"}
                                 placeholder="Enter your password"
                                 required
+                                autoComplete="new-password"
                                 onChange={(e) => setPassword(e.target.value)}
                                 value={password}
                                 className="w-full rounded-xl border border-white/25 bg-white/95 px-4 py-3 pr-12 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40 sm:text-base"

@@ -44,6 +44,7 @@ module.exports.signUp = async(req , res)=>{
     }
     catch(err){
         console.log("Error in signup" , err);
+        return res.status(500).json({ message: "Internal server error" });
     }
 }
 
@@ -83,6 +84,7 @@ module.exports.Login = async(req , res)=>{
     }
     catch(err){
         console.log("Error in login" , err);
+        return res.status(500).json({ message: "Internal server error" });
     }
 }
 
@@ -97,6 +99,7 @@ module.exports = {
             return res.status(200).json({message : "User logged out successfully"});
         }catch(err){
             console.log("Error in logout" , err);
+            return res.status(500).json({ message: "Internal server error" });
         }
     }
 }
