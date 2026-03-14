@@ -49,6 +49,12 @@ const serveFrontend = () => {
     console.warn(
       `Frontend build was not found at ${frontendDistPath}. API routes will stay available until the frontend is built.`
     );
+    app.get("/", (_req, res) => {
+      res.status(200).json({
+        message: "CerateAI backend is running.",
+        health: "/api/health",
+      });
+    });
     return;
   }
 
