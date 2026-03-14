@@ -1,0 +1,15 @@
+{
+  "name": "cerateai-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"frontend,backend\" -c \"blue,green\" \"npm --prefix frontend run dev\" \"npm --prefix Backend run dev\"",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix Backend run dev"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.6",
+    "react": "^19.2.4",
+    "react-router-dom": "^7.13.1"
+  }
+}
