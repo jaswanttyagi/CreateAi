@@ -100,6 +100,8 @@ const Home = () => {
     const shouldAutoRestartRef = useRef(true);
     const assistantNameRef = useRef(normalizeSpeechText(userData?.assistantName || ""));
     const assistantNameLabelRef = useRef(String(userData?.assistantName || "").trim());
+    const assistantDisplayName = userData?.assistantName || "Assistant";
+    const assistantImage = userData?.assistantImage;
 
     const startRecognitionSafely = () => {
         if (
@@ -492,96 +494,172 @@ const Home = () => {
         };
     }, [serverUrl])
     return (
-        <div className='relative w-full min-h-screen overflow-hidden bg-gradient-to-t from-[black] to-[#09094d] px-4 py-5 sm:px-6 sm:py-6 lg:px-8'>
+        <div className='scene-shell px-4 py-5 sm:px-6 sm:py-6 lg:px-8'>
             <div className={`assistant-aura ${isAssistantSpeaking ? "assistant-aura-active" : ""}`} />
 
-            <div className='relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-6 lg:gap-8'>
-                <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
-                    <div className='w-full max-w-xl rounded-[1.75rem] border border-white/15 bg-black/35 p-4 shadow-2xl shadow-cyan-950/20 backdrop-blur-sm sm:p-5'>
-                        <div className='flex flex-col gap-3'>
-                            <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-                                <div>
-                                    <p className='text-xs font-semibold uppercase tracking-[0.3em] text-cyan-200/70'>Voice Control</p>
-                                    <h2 className='text-lg font-semibold text-white sm:text-xl'>
-                                        {userData?.assistantName || "Assistant microphone"}
-                                    </h2>
-                                </div>
-                                <button
-                                    className='rounded-full border border-white/25 bg-white/90 px-5 py-3 text-sm font-semibold text-black transition hover:bg-blue-100'
-                                    onClick={() => {
-                                        if (isMicEnabled) {
-                                            stopRecognition();
-                                            return;
-                                        }
-
-                                        enableRecognition();
-                                    }}
-                                >
-                                    {isMicEnabled ? "Pause Microphone" : "Start Microphone"}
-                                </button>
+            <div className='relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-6'>
+                <header className='grid gap-5 xl:grid-cols-[1.18fr_0.82fr]'>
+                    <section className='cinema-panel cinema-panel-strong p-5 sm:p-7'>
+                        <div className='flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between'>
+                            <div className='space-y-4'>
+                                <p className='cinema-kicker'>Mission Control // Voice Deck</p>
+                                <h1 className='cinema-heading max-w-3xl'>
+                                    Meet <span className='text-cyan-300'>{assistantDisplayName}</span>, your cinematic assistant core.
+                                </h1>
+                                <p className='cinema-copy max-w-2xl'>
+                                    Wake it by name, watch the chamber light up, and keep the conversation flowing like a real on-screen sidekick built just for you.
+                                </p>
                             </div>
 
-                            <p className='rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white/90 backdrop-blur-sm sm:text-base'>
-                                {listeningState}
-                            </p>
+                            <button
+                                className={`${isMicEnabled ? "holo-button" : "holo-button-secondary"} w-full text-sm sm:w-auto sm:min-w-[13rem] sm:text-base`}
+                                onClick={() => {
+                                    if (isMicEnabled) {
+                                        stopRecognition();
+                                        return;
+                                    }
 
-                            {lastHeardText && (
-                                <p className='rounded-2xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100 backdrop-blur-sm sm:text-base'>
-                                    Heard: {lastHeardText}
-                                </p>
-                            )}
+                                    enableRecognition();
+                                }}
+                            >
+                                {isMicEnabled ? "Pause Microphone" : "Start Microphone"}
+                            </button>
                         </div>
-                    </div>
 
-                    <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-1'>
-                        <button
-                            className='min-h-12 rounded-full bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-blue-100 sm:text-base'
-                            onClick={() => Logout()}
-                        >
-                            Log out
-                        </button>
+                        <div className='mt-5 flex flex-wrap gap-3'>
+                            <span className={`status-pill ${isMicEnabled ? "status-pill-cyan" : "status-pill-rose"}`}>
+                                {isMicEnabled ? "Microphone armed" : "Microphone paused"}
+                            </span>
+                            <span className={`status-pill ${assistantActiveRef.current ? "status-pill-blue" : "status-pill-amber"}`}>
+                                {assistantActiveRef.current ? "Assistant focused" : "Wake-word standby"}
+                            </span>
+                            <span className={`status-pill ${isAssistantSpeaking ? "status-pill-cyan" : "status-pill-blue"}`}>
+                                {isAssistantSpeaking ? "Voice output live" : "Awaiting command"}
+                            </span>
+                        </div>
+                    </section>
 
+                    <aside className='grid gap-3 sm:grid-cols-2 xl:grid-cols-2'>
                         <button
-                            className='min-h-12 rounded-full bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-blue-100 sm:text-base'
+                            className='holo-button-secondary text-sm sm:text-base'
                             onClick={() =>
                                 navigate("/customize", {
                                     state: { allowAssistantCustomization: true },
                                 })
                             }
                         >
-                            Customize
+                            Customize Assistant
                         </button>
 
                         <button
-                            disabled={deleteLoading}
-                            className='min-h-12 rounded-full bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-70 sm:text-base'
-                            onClick={handleDeleteAccount}
-                        >
-                            {deleteLoading ? "Deleting..." : "Delete Account"}
-                        </button>
-
-                        <button
-                            className='min-h-12 rounded-full bg-yellow-300 px-4 py-3 text-sm font-semibold text-black transition hover:bg-yellow-200 sm:text-base'
+                            className='holo-button-warn text-sm sm:text-base'
                             onClick={handleNewSession}
                         >
                             New Session
                         </button>
-                    </div>
-                </div>
 
-                <div className='flex flex-1 flex-col items-center justify-center gap-4 pb-4 pt-2 sm:gap-5 sm:pt-4 lg:pt-6'>
-                    <div className={`relative z-10 aspect-[3/4] w-full max-w-[18rem] overflow-hidden rounded-[2rem] shadow-lg transition-all duration-300 sm:max-w-[20rem] ${isAssistantSpeaking ? "shadow-cyan-400/60 scale-[1.02]" : ""}`}>
-                        <img src={userData?.assistantImage} alt={userData?.assistantName || "Assistant"} className='h-full w-full object-cover' />
-                    </div>
+                        <button
+                            className='holo-button-secondary text-sm sm:text-base'
+                            onClick={() => Logout()}
+                        >
+                            Log out
+                        </button>
 
-                    <h1 className='text-center text-2xl text-white sm:text-3xl lg:text-4xl'>
-                        I&apos;m {userData?.assistantName}
-                    </h1>
+                        <button
+                            disabled={deleteLoading}
+                            className='holo-button-danger text-sm disabled:cursor-not-allowed disabled:opacity-70 sm:text-base'
+                            onClick={handleDeleteAccount}
+                        >
+                            {deleteLoading ? "Deleting..." : "Delete Account"}
+                        </button>
+                    </aside>
+                </header>
 
-                    <p className='relative z-10 max-w-2xl text-center text-sm text-white/80 sm:text-base lg:text-lg'>
-                        {assistantReply || "Say the assistant name once to activate it."}
-                    </p>
-                </div>
+                <main className='grid gap-5 lg:grid-cols-[0.9fr_1.2fr_0.9fr] lg:items-start'>
+                    <section className='order-2 flex flex-col gap-5 lg:order-1'>
+                        <div className='cinema-panel cinema-panel-tilt p-5 sm:p-6'>
+                            <p className='cinema-kicker'>Live Telemetry</p>
+                            <div className='mt-4 space-y-3'>
+                                <p className='rounded-[1.4rem] border border-white/10 bg-black/30 px-4 py-4 text-sm text-white/88 sm:text-base'>
+                                    {listeningState}
+                                </p>
+                                <div className='rounded-[1.4rem] border border-cyan-400/20 bg-cyan-400/10 px-4 py-4'>
+                                    <p className='text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/70'>
+                                        Heard
+                                    </p>
+                                    <p className='mt-2 text-base text-cyan-50 sm:text-lg'>
+                                        {lastHeardText || "Waiting for your voice..."}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className='cinema-panel cinema-panel-tilt p-5 sm:p-6'>
+                            <p className='cinema-kicker'>Wake Protocol</p>
+                            <div className='mt-4 space-y-3 text-sm text-white/72 sm:text-base'>
+                                <p>Say <span className='font-semibold text-white'>{assistantDisplayName}</span> to activate the assistant.</p>
+                                <p>When it wakes, it replies: <span className='font-semibold text-cyan-100'>{ACTIVATION_RESPONSE}</span></p>
+                                <p>Say <span className='font-semibold text-white'>stop listening</span> to drop back into standby mode.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className='order-1 lg:order-2'>
+                        <div className='assistant-stage px-5 py-8 sm:px-7 sm:py-10'>
+                            <div className='assistant-orbit' />
+                            <div className='assistant-orbit-secondary' />
+                            <div className='assistant-orbit-tertiary' />
+
+                            <div className={`assistant-portrait ${isAssistantSpeaking ? "assistant-portrait-active" : ""}`}>
+                                {assistantImage ? (
+                                    <img src={assistantImage} alt={assistantDisplayName} />
+                                ) : (
+                                    <div className='flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(125,211,252,0.16),_transparent_44%),linear-gradient(180deg,_rgba(10,18,34,0.96),_rgba(4,8,18,0.92))] p-8 text-center'>
+                                        <span className='text-xl font-semibold text-white/80'>No assistant image yet</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className='relative z-10 mx-auto mt-6 max-w-2xl text-center'>
+                                <p className='cinema-kicker justify-center'>Assistant Core</p>
+                                <h2 className='mt-4 text-3xl font-semibold text-white sm:text-4xl lg:text-5xl'>
+                                    {assistantDisplayName}
+                                </h2>
+                                <p className='mx-auto mt-4 max-w-2xl text-sm text-white/80 sm:text-base lg:text-lg'>
+                                    {assistantReply || "Say the assistant name once to activate it, then ask anything you want."}
+                                </p>
+                            </div>
+
+                            <div className='floating-glow' />
+                        </div>
+                    </section>
+
+                    <section className='order-3 flex flex-col gap-5'>
+                        <div className='cinema-panel cinema-panel-tilt p-5 sm:p-6'>
+                            <p className='cinema-kicker'>Reply Channel</p>
+                            <p className='mt-4 text-2xl font-semibold text-white sm:text-3xl'>
+                                {assistantReply ? "Response delivered" : "Ready for the next line"}
+                            </p>
+                            <p className='mt-3 text-sm text-white/72 sm:text-base'>
+                                {assistantReply || "The chamber stays on standby until you speak the wake-word or trigger a command."}
+                            </p>
+                        </div>
+
+                        <div className='cinema-panel cinema-panel-tilt p-5 sm:p-6'>
+                            <p className='cinema-kicker'>Scene Notes</p>
+                            <div className='mt-4 grid gap-3'>
+                                <div className='rounded-[1.3rem] border border-white/10 bg-black/25 px-4 py-4'>
+                                    <p className='text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/70'>Session Memory</p>
+                                    <p className='mt-2 text-base text-white'>A fresh session keeps the conversation sharp and cinematic.</p>
+                                </div>
+                                <div className='rounded-[1.3rem] border border-white/10 bg-black/25 px-4 py-4'>
+                                    <p className='text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/70'>Popup Actions</p>
+                                    <p className='mt-2 text-base text-white'>Allow popups if you want the assistant to open search, maps, or media actions in new tabs.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </main>
             </div>
         </div>
     )

@@ -118,6 +118,7 @@ const Customize = () => {
             inputImage.current.click();
             setSelectedImage("input")
           }
+        }
         >
           {!frontendImage && <RiImageAddLine className='text-cyan-100 h-8 w-8' />}
           {/*  if frontendImage is presnet then show it */}
