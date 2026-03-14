@@ -115,7 +115,39 @@ const getPreferredRecognitionLanguage = () => {
         .map((value) => String(value || "").trim())
         .filter(Boolean);
 
-    return candidateLanguages[0] || "en-US";
+    const preferredEnglishLanguage = candidateLanguages.find((value) => /^en\b/i.test(value));
+    if (preferredEnglishLanguage) {
+        return preferredEnglishLanguage;
+    }
+
+    const hasIndicLanguagePreference = candidateLanguages.some((value) =>
+        /^(hi|bn|gu|kn|ml|mr|pa|ta|te|ur)\b/i.test(value)
+    );
+
+    return hasIndicLanguagePreference ? "en-IN" : "en-US";
+};
+
+const isMobileBrowser = () => {
+    if (typeof navigator === "undefined") {
+        return false;
+    }
+
+    if (typeof navigator.userAgentData?.mobile === "boolean") {
+        return navigator.userAgentData.mobile;
+    }
+
+    return /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || "");
+};
+
+const getSpeechRecognitionConfig = () => {
+    const mobile = isMobileBrowser();
+
+    return {
+        isMobile: mobile,
+        continuous: !mobile,
+        interimResults: !mobile,
+        restartDelayMs: mobile ? 550 : 250,
+    };
 };
 
 const findWakeWordMatch = (alternatives = [], assistantName = "") => {
@@ -223,6 +255,7 @@ const Home = () => {
     const customAudioRef = useRef(null);
     const hasMicPermissionRef = useRef(false);
     const shouldAutoRestartRef = useRef(false);
+    const speechRecognitionConfigRef = useRef(getSpeechRecognitionConfig());
     const assistantNameRef = useRef(normalizeSpeechText(userData?.assistantName || ""));
     const assistantNameLabelRef = useRef(String(userData?.assistantName || "").trim());
     const assistantDisplayName = userData?.assistantName || "Assistant";
@@ -297,7 +330,7 @@ const Home = () => {
         window.clearTimeout(recognitionRestartTimeoutRef.current);
         recognitionRestartTimeoutRef.current = window.setTimeout(() => {
             void startRecognitionSafely();
-        }, 250);
+        }, speechRecognitionConfigRef.current.restartDelayMs);
     };
 
     const stopRecognition = () => {
@@ -321,9 +354,16 @@ const Home = () => {
             return;
         }
 
+        const activeActionWindow =
+            assistantActionWindowRef.current === window
+                ? window
+                : assistantActionWindowRef.current && !assistantActionWindowRef.current.closed
+                    ? assistantActionWindowRef.current
+                    : null;
+
         if (data.type === "go_back") {
-            if (assistantActionWindowRef.current && !assistantActionWindowRef.current.closed) {
-                assistantActionWindowRef.current.history.back();
+            if (activeActionWindow) {
+                activeActionWindow.history.back();
             } else {
                 setAssistantReply("There is no assistant tab open to go back.");
             }
@@ -331,8 +371,8 @@ const Home = () => {
         }
 
         if (data.type === "go_forward") {
-            if (assistantActionWindowRef.current && !assistantActionWindowRef.current.closed) {
-                assistantActionWindowRef.current.history.forward();
+            if (activeActionWindow) {
+                activeActionWindow.history.forward();
             } else {
                 setAssistantReply("There is no assistant tab open to go forward.");
             }
@@ -340,8 +380,8 @@ const Home = () => {
         }
 
         if (data.type === "refresh_page") {
-            if (assistantActionWindowRef.current && !assistantActionWindowRef.current.closed) {
-                assistantActionWindowRef.current.location.reload();
+            if (activeActionWindow) {
+                activeActionWindow.location.reload();
             } else {
                 setAssistantReply("There is no assistant tab open to refresh.");
             }
@@ -353,14 +393,21 @@ const Home = () => {
             return;
         }
 
-        const openedWindow = window.open("", "assistant-action-tab");
+        if (activeActionWindow && activeActionWindow !== window) {
+            activeActionWindow.location.href = targetUrl;
+            activeActionWindow.focus?.();
+            return;
+        }
+
+        const openedWindow = window.open(targetUrl, "assistant-action-tab");
         if (!openedWindow) {
-            setAssistantReply("Please allow popups so I can open links in a new tab.");
+            assistantActionWindowRef.current = window;
+            window.location.assign(targetUrl);
             return;
         }
 
         openedWindow.opener = null;
-        openedWindow.location.href = targetUrl;
+        openedWindow.focus?.();
         assistantActionWindowRef.current = openedWindow;
     };
 
@@ -547,8 +594,8 @@ const Home = () => {
             setIsAssistantSpeaking(false);
             scheduleRecognitionRestart();
         };
-        recognition.continuous = false;
-        recognition.interimResults = false;
+        recognition.continuous = speechRecognitionConfigRef.current.continuous;
+        recognition.interimResults = speechRecognitionConfigRef.current.interimResults;
         recognition.maxAlternatives = 5;
         recognition.lang = getPreferredRecognitionLanguage();
 
