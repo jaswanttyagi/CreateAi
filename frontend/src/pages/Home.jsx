@@ -102,6 +102,22 @@ const cleanAssistantCommand = (value = "") =>
         .replace(COMMAND_PREFIX_PATTERN, "")
         .trim();
 
+const getPreferredRecognitionLanguage = () => {
+    if (typeof navigator === "undefined") {
+        return "en-US";
+    }
+
+    const availableLanguages = Array.isArray(navigator.languages)
+        ? navigator.languages.filter(Boolean)
+        : [];
+    const browserLanguage = navigator.language || "";
+    const candidateLanguages = [...availableLanguages, browserLanguage]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+
+    return candidateLanguages[0] || "en-US";
+};
+
 const findWakeWordMatch = (alternatives = [], assistantName = "") => {
     const assistantWords = splitSpeechWords(assistantName);
     if (!assistantWords.length) {
@@ -204,6 +220,7 @@ const Home = () => {
     const recognitionRestartTimeoutRef = useRef(null);
     const assistantActionWindowRef = useRef(null);
     const customAudioRef = useRef(null);
+    const microphoneStreamRef = useRef(null);
     const shouldAutoRestartRef = useRef(true);
     const assistantNameRef = useRef(normalizeSpeechText(userData?.assistantName || ""));
     const assistantNameLabelRef = useRef(String(userData?.assistantName || "").trim());
@@ -215,7 +232,46 @@ const Home = () => {
         setIsAssistantActive(isActive);
     };
 
-    const startRecognitionSafely = () => {
+    const releaseMicrophoneStream = () => {
+        const activeStream = microphoneStreamRef.current;
+        if (!activeStream) {
+            return;
+        }
+
+        activeStream.getTracks().forEach((track) => track.stop());
+        microphoneStreamRef.current = null;
+    };
+
+    const ensureMicrophoneAccess = async () => {
+        if (microphoneStreamRef.current?.active) {
+            return true;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+            setListeningState("This browser cannot access your microphone.");
+            return false;
+        }
+
+        try {
+            setListeningState("Waiting for microphone permission...");
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                },
+            });
+            microphoneStreamRef.current = stream;
+            return true;
+        } catch (error) {
+            console.log("microphone access failed:", error.message);
+            setIsMicEnabled(false);
+            setListeningState("Microphone permission was denied or no input device is available.");
+            return false;
+        }
+    };
+
+    const startRecognitionSafely = async () => {
         if (
             !recognitionRef.current ||
             recognitionRunningRef.current ||
@@ -226,6 +282,11 @@ const Home = () => {
         }
 
         try {
+            const hasMicrophoneAccess = await ensureMicrophoneAccess();
+            if (!hasMicrophoneAccess) {
+                return;
+            }
+
             setListeningState("Requesting microphone access...");
             recognitionRef.current.start();
         } catch (error) {
@@ -243,7 +304,7 @@ const Home = () => {
 
         window.clearTimeout(recognitionRestartTimeoutRef.current);
         recognitionRestartTimeoutRef.current = window.setTimeout(() => {
-            startRecognitionSafely();
+            void startRecognitionSafely();
         }, 250);
     };
 
@@ -254,12 +315,13 @@ const Home = () => {
         window.clearTimeout(recognitionRestartTimeoutRef.current);
         recognitionRunningRef.current = false;
         recognitionRef.current?.stop();
+        releaseMicrophoneStream();
     };
 
     const enableRecognition = () => {
         shouldAutoRestartRef.current = true;
         setIsMicEnabled(true);
-        startRecognitionSafely();
+        void startRecognitionSafely();
     };
 
     const executeAssistantAction = (data) => {
@@ -494,7 +556,35 @@ const Home = () => {
         recognition.continuous = true;
         recognition.interimResults = true;
         recognition.maxAlternatives = 5;
-        recognition.lang = 'en-US'
+        recognition.lang = getPreferredRecognitionLanguage();
+
+        recognition.onaudiostart = () => {
+            console.log("speech recognition audio started");
+            setListeningState("Microphone is live. Listening for your voice...");
+        };
+
+        recognition.onsoundstart = () => {
+            console.log("speech recognition detected sound");
+            setListeningState("Sound detected...");
+        };
+
+        recognition.onspeechstart = () => {
+            console.log("speech recognition detected speech");
+            setListeningState("Speech detected...");
+        };
+
+        recognition.onspeechend = () => {
+            console.log("speech recognition speech ended");
+        };
+
+        recognition.onaudioend = () => {
+            console.log("speech recognition audio ended");
+        };
+
+        recognition.onnomatch = () => {
+            console.log("speech recognition could not match what it heard");
+            setListeningState("I heard something, but I could not understand it clearly.");
+        };
 
         recognition.onstart = () => {
             recognitionRunningRef.current = true;
@@ -573,17 +663,28 @@ const Home = () => {
         }
 
         recognition.onerror = (event) => {
-            if (event.error !== "no-speech") {
-                console.log("speech error:", event.error);
-                setListeningState(`Microphone error: ${event.error}`);
+            console.log("speech error:", event.error);
+
+            if (event.error === "no-speech") {
+                setListeningState("No speech detected. Try speaking a little louder or closer to the mic.");
                 return;
             }
 
-            setListeningState(
-                assistantNameLabelRef.current
-                    ? `Listening for ${assistantNameLabelRef.current}`
-                    : "Listening..."
-            );
+            if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+                shouldAutoRestartRef.current = false;
+                setIsMicEnabled(false);
+                releaseMicrophoneStream();
+                setListeningState("Microphone permission is blocked. Please allow microphone access in the browser.");
+                return;
+            }
+
+            if (event.error === "audio-capture") {
+                releaseMicrophoneStream();
+                setListeningState("No microphone input was found. Check your browser microphone device.");
+                return;
+            }
+
+            setListeningState(`Microphone error: ${event.error}`);
         };
 
         recognition.onend = () => {
@@ -597,7 +698,7 @@ const Home = () => {
             setListeningState("Microphone paused");
         };
 
-        startRecognitionSafely();
+        void startRecognitionSafely();
 
         return () => {
             recognition.onend = null;
@@ -607,6 +708,7 @@ const Home = () => {
             recognitionRunningRef.current = false;
             window.clearTimeout(recognitionRestartTimeoutRef.current);
             recognition.stop();
+            releaseMicrophoneStream();
             if (window.speechSynthesis) {
                 window.speechSynthesis.cancel();
             }

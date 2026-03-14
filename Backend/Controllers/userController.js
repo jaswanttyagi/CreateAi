@@ -833,6 +833,63 @@ const buildFallbackAssistantReply = (prompt, assistantName, userName, type = "ge
     };
 };
 
+const isGeminiServiceError = (error) => {
+    const errorMessage = String(error?.message || "").trim();
+    const statusCode = error?.response?.status;
+
+    return (
+        errorMessage === "GEMINI_API_KEY is missing" ||
+        errorMessage === "Invalid response from assistant" ||
+        errorMessage.toLowerCase().includes("gemini") ||
+        [400, 429, 500, 503].includes(statusCode) ||
+        Boolean(error?.response?.data?.error)
+    );
+};
+
+const buildAssistantServiceFailureReply = (prompt, assistantName, userName, error) => {
+    if (!isGeminiServiceError(error)) {
+        return null;
+    }
+
+    const statusCode = error?.response?.status;
+    const hasInvalidApiKeyReason = Boolean(
+        error?.response?.data?.error?.details?.some((detail) => detail.reason === "API_KEY_INVALID")
+    );
+    const errorMessage = String(error?.message || "").trim();
+
+    if (statusCode === 429) {
+        return {
+            type: "general",
+            userInput: prompt,
+            response: "My Gemini quota is exhausted right now."
+        };
+    }
+
+    if (errorMessage === "GEMINI_API_KEY is missing") {
+        return {
+            type: "general",
+            userInput: prompt,
+            response: "My Gemini API key is missing. Add a valid GEMINI_API_KEY in Backend/.env so I can answer open-ended questions."
+        };
+    }
+
+    if (hasInvalidApiKeyReason) {
+        return {
+            type: "general",
+            userInput: prompt,
+            response: "My Gemini API key is invalid or expired. Update GEMINI_API_KEY in Backend/.env and restart the backend."
+        };
+    }
+
+    const fallbackReply = buildFallbackAssistantReply(prompt, assistantName, userName);
+    return {
+        ...fallbackReply,
+        type: "general",
+        userInput: prompt,
+        response: "I cannot reach my AI service right now. Please try again in a moment."
+    };
+};
+
 const isWeakAssistantResponse = (response) => {
     const normalizedResponse = String(response || "").toLowerCase().trim();
 
@@ -1105,19 +1162,23 @@ const deleteAccount = async(req , res)=>{
 }
 
 const askToassistant = async(req , res)=>{
+    const prompt = String(req.body?.prompt || "").trim();
+    let user = null;
+    let userName = "Unknown";
+    let assistantName = "Your Assistant";
+
     try{
-        const user = await User.findById(req.userId);
+        user = await User.findById(req.userId);
         if(!user){
             return res.status(404).json({message : "User not found"});
         }
 
-        const prompt = req.body.prompt;
-        if(!prompt || !String(prompt).trim()){
+        if(!prompt){
             return res.status(400).json({message : "Prompt is required"});
         }
 
-        const userName = user.name;
-        const assistantName = user.assistantName || "Your Assistant";
+        userName = user.name;
+        assistantName = user.assistantName || "Your Assistant";
         const sessionMessages = sanitizeSessionMessages(req.body.sessionMessages);
         const replyMode = getReplyMode(user);
         const promptContext = buildPromptContext(user, sessionMessages);
@@ -1278,10 +1339,19 @@ const askToassistant = async(req , res)=>{
         console.log("could not ask to assistant");
         console.log(err);
 
+        const assistantFailureReply = buildAssistantServiceFailureReply(prompt, assistantName, userName, err);
+        if (assistantFailureReply) {
+            if (user) {
+                return sendAssistantResponse(res, user, prompt, assistantFailureReply);
+            }
+
+            return res.status(200).json(assistantFailureReply);
+        }
+
         if (err.response?.status === 429) {
             return res.status(200).json({
                 type: "general",
-                userInput: req.body.prompt,
+                userInput: prompt,
                 response: "My Gemini quota is exhausted right now."
             });
         }

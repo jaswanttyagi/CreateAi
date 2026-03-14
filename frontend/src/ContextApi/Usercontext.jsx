@@ -161,6 +161,16 @@ function Usercontext({ children }) {
       return result.data;
 
     }catch(err){
+        const backendPayload = err?.response?.data;
+        const assistantPayload =
+          backendPayload && typeof backendPayload === "object" && backendPayload.response
+            ? backendPayload
+            : null;
+        const backendMessage =
+          typeof backendPayload === "string"
+            ? backendPayload
+            : assistantPayload?.response || backendPayload?.message || "";
+
         console.log("error in getting response from gemini");
         console.log("frontend gemini error status:", err?.response?.status);
         console.log("frontend gemini error data:", err?.response?.data);
@@ -169,6 +179,18 @@ function Usercontext({ children }) {
           JSON.stringify(err?.response?.data?.details, null, 2)
         );
         console.log("frontend gemini error message:", err?.message);
+
+        if (backendMessage) {
+          const normalizedAssistantReply = assistantPayload || {
+            type: "general",
+            userInput: command,
+            response: backendMessage,
+          };
+
+          appendSessionExchange(command, normalizedAssistantReply.response);
+          return normalizedAssistantReply;
+        }
+
         return "Sorry, I am having trouble responding right now.";
     }
   }
