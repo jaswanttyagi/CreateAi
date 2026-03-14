@@ -40,35 +40,59 @@ const Customzize2 = () => {
         }
     }
     return (
-        <div className='w-full h-[100vh] bg-gradient-to-t from-[black] to-[#09094d] flex justify-center items-center flex-col p-[20px] relative'>
-            <IoMdArrowRoundBack className='text-white absolute top-[30px] left-[30px] w-[25px] h-[25px] cursor-pointer'
-            onClick={() =>
-                navigate("/customize", {
-                    state: isEditingAssistant
-                        ? { allowAssistantCustomization: true }
-                        : null,
-                })
-            }
-            ></IoMdArrowRoundBack>
-            <h1 className=' font-bold text-white mb-[40px] text-[30px]'>Enter your <span className="text-blue-400">Assistant's name</span></h1>
-            <input
-                type="text"
-                placeholder='eg. Jarvis'
-                required   
-                value={assistantname}
-                onChange={(e)=>setAssistantname(e.target.value)}      
-                className='w-full max-w-[600px] rounded-xl border border-white/25 bg-white/95 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40 sm:text-base'
-            />
+        <div className='min-h-screen w-full bg-gradient-to-t from-[black] to-[#09094d] px-4 py-6 sm:px-6 sm:py-8 lg:px-8'>
+            <div className='mx-auto flex w-full max-w-4xl flex-col gap-6'>
+                <div className='flex items-center gap-3'>
+                    <button
+                        type="button"
+                        className='flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/20'
+                        onClick={() =>
+                            navigate("/customize", {
+                                state: isEditingAssistant
+                                    ? { allowAssistantCustomization: true }
+                                    : null,
+                            })
+                        }
+                    >
+                        <IoMdArrowRoundBack className='h-6 w-6' />
+                    </button>
+                    <div>
+                        <p className='text-xs font-semibold uppercase tracking-[0.32em] text-cyan-200/70'>Step 2</p>
+                        <h1 className='text-2xl font-bold text-white sm:text-3xl lg:text-4xl'>
+                            Enter your <span className="text-blue-400">assistant&apos;s name</span>
+                        </h1>
+                    </div>
+                </div>
 
-            {
-            assistantname && <button disabled={loading} className='min-w-[150px] h-[50px] font-semibold text-black bg-white p-[10px] rounded-full text-[20px] mt-[30px] hover:text-blue-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70'
-      onClick={()=>{
-        handleAssistant()
-    }}
-      >
-        {loading ? "Loading..." : isEditingAssistant ? "Update Your Assistant" : "Create Your Assistant"}
-      </button>
-            }
+                <div className='rounded-[2rem] border border-white/15 bg-black/30 p-5 shadow-2xl shadow-blue-950/20 backdrop-blur-sm sm:p-8'>
+                    <div className='mx-auto flex w-full max-w-2xl flex-col gap-4'>
+                        <p className='text-sm text-white/75 sm:text-base'>
+                            Choose a name that is easy to pronounce so wake-word detection works better on phones, tablets, and desktops.
+                        </p>
+
+                        <input
+                            type="text"
+                            placeholder='eg. Jarvis'
+                            required
+                            value={assistantname}
+                            onChange={(e)=>setAssistantname(e.target.value)}
+                            className='w-full rounded-2xl border border-white/25 bg-white/95 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40 sm:px-5 sm:py-4 sm:text-base'
+                        />
+
+                        {assistantname && (
+                            <button
+                                disabled={loading}
+                                className='min-h-12 w-full rounded-full bg-white px-6 py-3 text-base font-semibold text-black transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-70 sm:text-lg'
+                                onClick={()=>{
+                                    handleAssistant()
+                                }}
+                            >
+                                {loading ? "Loading..." : isEditingAssistant ? "Update Your Assistant" : "Create Your Assistant"}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
     )
 }

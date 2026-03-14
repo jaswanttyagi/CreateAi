@@ -16,7 +16,7 @@ import { IoMdArrowRoundBack } from "react-icons/io";
 
 const Customize = () => {
 
-  const { serverUrl, userData, setUserData: persistUser, setFrontendImage, setbackendImage, frontendImage, backendImage, selectedImage, setSelectedImage } = useContext(UserDataContext);
+  const { setFrontendImage, setbackendImage, frontendImage, selectedImage, setSelectedImage } = useContext(UserDataContext);
   const inputImage = useRef();
 
   const navigate = useNavigate();
@@ -31,12 +31,25 @@ const Customize = () => {
 
   }
   return (
-    <div className='w-full h-[full-screen] bg-gradient-to-t from-[black] to-[#09094d] flex justify-center items-center flex-col p-[20px]'>
-      <IoMdArrowRoundBack className='text-white absolute top-[30px] left-[30px] w-[25px] h-[25px] cursor-pointer'
-        onClick={() => navigate("/")}
-      ></IoMdArrowRoundBack>
-      <h1 className=' font-bold text-white mb-[40px] text-[30px]'>Choose your <span className="text-blue-400">assistant's avatar</span></h1>
-      <div className='w-[90%] max-w-[60%] flex justify-center items-center flex-wrap gap-5'>
+    <div className='min-h-screen w-full bg-gradient-to-t from-[black] to-[#09094d] px-4 py-6 sm:px-6 sm:py-8 lg:px-8'>
+      <div className='mx-auto flex w-full max-w-7xl flex-col gap-6'>
+        <div className='flex items-center gap-3'>
+          <button
+            type="button"
+            className='flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/20'
+            onClick={() => navigate("/")}
+          >
+            <IoMdArrowRoundBack className='h-6 w-6' />
+          </button>
+          <div>
+            <p className='text-xs font-semibold uppercase tracking-[0.32em] text-cyan-200/70'>Step 1</p>
+            <h1 className='text-2xl font-bold text-white sm:text-3xl lg:text-4xl'>
+              Choose your <span className="text-blue-400">assistant&apos;s avatar</span>
+            </h1>
+          </div>
+        </div>
+
+        <div className='grid w-full grid-cols-2 justify-items-center gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 xl:gap-5'>
         <Card image={image1} />
         <Card image={image2} />
         <Card image={authBg} />
@@ -46,7 +59,7 @@ const Customize = () => {
         <Card image={image7} />
 
         {/* now putting the section where user can use their own image to set the assisant */}
-        <div className={`w-[200px] h-[300px] bg-[#030326] border-2 border-[blue] rounded-2xl overflow-hidden cursor-pointer transition-transform duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-blue-950 hover:border-4 hover:border-[white] flex justify-center items-center flex-col gap-3 ${selectedImage === "input" ? 'border-4 border-[white] shadow-2xl shadow-blue-950' : ''}`}
+        <div className={`aspect-[2/3] w-full max-w-[220px] bg-[#030326] border-2 border-[blue] rounded-2xl overflow-hidden cursor-pointer transition-transform duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-blue-950 hover:border-4 hover:border-[white] flex justify-center items-center flex-col gap-3 ${selectedImage === "input" ? 'border-4 border-[white] shadow-2xl shadow-blue-950' : ''}`}
           onClick={() => {
             inputImage.current.click();
             setSelectedImage("input")
@@ -56,25 +69,26 @@ const Customize = () => {
 
           {!frontendImage && <RiImageAddLine className='text-white w-[25px] h-[25px]'></RiImageAddLine>}
           {/*  if frontendImage is presnet then show it */}
-          {frontendImage && <img src={frontendImage} alt="preview" className='h-full object-cover rounded-2xl' />}
+          {frontendImage && <img src={frontendImage} alt="Preview" className='h-full w-full object-cover rounded-2xl' />}
 
         </div>
         <input type="file" accept='image/*' ref={inputImage} hidden onChange={handleChange} />
+        </div>
+
+        <div className='flex justify-center pt-2 sm:pt-4'>
+          <button className='min-h-12 w-full max-w-sm rounded-full bg-white px-6 py-3 text-base font-semibold text-black transition hover:bg-blue-100 sm:text-lg'
+            onClick={() =>
+              navigate("/customize2", {
+                state: isEditingAssistant
+                  ? { allowAssistantCustomization: true }
+                  : null,
+              })
+            }
+          >
+            Next
+          </button>
+        </div>
       </div>
-
-      <button className='min-w-[150px] h-[60px] font-semibold text-black bg-white p-[10px] rounded-full text-[20px] mt-[30px] hover:text-blue-200 cursor-pointer'
-        onClick={() =>
-          navigate("/customize2", {
-            state: isEditingAssistant
-              ? { allowAssistantCustomization: true }
-              : null,
-          })
-        }
-      >
-        Next
-      </button>
-
-
     </div>
   )
 }

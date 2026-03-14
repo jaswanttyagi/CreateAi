@@ -6,6 +6,9 @@ import axios from "axios"
 const normalizeSpeechText = (value = "") =>
     value.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
 
+const escapeRegExp = (value = "") =>
+    value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const getEditDistance = (source = "", target = "") => {
     const rows = source.length + 1;
     const cols = target.length + 1;
@@ -73,6 +76,7 @@ const AUDIO_TRIGGER_CONFIG = {
     audioPath: "/audio/Babbal.mp3",
     triggerWords: ["bubble", "babbal"],
 };
+const ACTIVATION_RESPONSE = "I am activated. Ask me anything.";
 
 const normalizeCommandType = (type = "") =>
     String(type).trim().toLowerCase().replace(/-/g, "_");
@@ -83,6 +87,9 @@ const Home = () => {
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [assistantReply, setAssistantReply] = useState("");
     const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
+    const [isMicEnabled, setIsMicEnabled] = useState(true);
+    const [listeningState, setListeningState] = useState("Starting microphone...");
+    const [lastHeardText, setLastHeardText] = useState("");
     const recognitionRef = useRef(null);
     const assistantActiveRef = useRef(false);
     const isAssistantSpeakingRef = useRef(false);
@@ -90,26 +97,55 @@ const Home = () => {
     const recognitionRestartTimeoutRef = useRef(null);
     const assistantActionWindowRef = useRef(null);
     const customAudioRef = useRef(null);
+    const shouldAutoRestartRef = useRef(true);
+    const assistantNameRef = useRef(normalizeSpeechText(userData?.assistantName || ""));
+    const assistantNameLabelRef = useRef(String(userData?.assistantName || "").trim());
 
     const startRecognitionSafely = () => {
-        if (!recognitionRef.current || recognitionRunningRef.current || isAssistantSpeakingRef.current) {
+        if (
+            !recognitionRef.current ||
+            recognitionRunningRef.current ||
+            isAssistantSpeakingRef.current ||
+            !shouldAutoRestartRef.current
+        ) {
             return;
         }
 
         try {
+            setListeningState("Requesting microphone access...");
             recognitionRef.current.start();
         } catch (error) {
             if (error.name !== "InvalidStateError") {
                 console.log("speech error:", error.message);
+                setListeningState(`Microphone error: ${error.message}`);
             }
         }
     };
 
     const scheduleRecognitionRestart = () => {
+        if (!shouldAutoRestartRef.current) {
+            return;
+        }
+
         window.clearTimeout(recognitionRestartTimeoutRef.current);
         recognitionRestartTimeoutRef.current = window.setTimeout(() => {
             startRecognitionSafely();
         }, 250);
+    };
+
+    const stopRecognition = () => {
+        shouldAutoRestartRef.current = false;
+        setIsMicEnabled(false);
+        setListeningState("Microphone paused");
+        window.clearTimeout(recognitionRestartTimeoutRef.current);
+        recognitionRunningRef.current = false;
+        recognitionRef.current?.stop();
+    };
+
+    const enableRecognition = () => {
+        shouldAutoRestartRef.current = true;
+        setIsMicEnabled(true);
+        startRecognitionSafely();
     };
 
     const executeAssistantAction = (data) => {
@@ -295,12 +331,18 @@ const Home = () => {
         resetConversationSession();
     };
 
+    useEffect(() => {
+        assistantNameRef.current = normalizeSpeechText(userData?.assistantName || "");
+        assistantNameLabelRef.current = String(userData?.assistantName || "").trim();
+    }, [userData?.assistantName]);
 
 
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
             console.log("Speech recognition is not supported in this browser");
+            setListeningState("Speech recognition is not supported in this browser.");
+            setIsMicEnabled(false);
             return;
         }
 
@@ -325,16 +367,23 @@ const Home = () => {
 
         recognition.onstart = () => {
             recognitionRunningRef.current = true;
+            setIsMicEnabled(true);
+            setListeningState(
+                assistantNameLabelRef.current
+                    ? `Listening for ${assistantNameLabelRef.current}`
+                    : "Listening..."
+            );
             console.log("speech recognition started");
         };
 
         recognition.onresult = async (e) => {
             const lastResult = e.results[e.results.length - 1];
+            const transcript = lastResult[0].transcript.trim();
+            setLastHeardText(transcript);
             if (!lastResult.isFinal || isAssistantSpeakingRef.current) {
                 return;
             }
 
-            const transcript = lastResult[0].transcript.trim();
             console.log("heard : " + transcript);
             const normalizedTranscript = normalizeSpeechText(transcript);
 
@@ -343,7 +392,7 @@ const Home = () => {
                 return;
             }
 
-            const assistantName = normalizeSpeechText(userData?.assistantName);
+            const assistantName = assistantNameRef.current;
             const heardAlternatives = Array.from(lastResult).map((item) => item.transcript.trim());
             const matchedWakeWordTranscript = heardAlternatives.find((item) => {
                 const normalizedItem = normalizeSpeechText(item);
@@ -371,12 +420,18 @@ const Home = () => {
             if (hasAssistantName) {
                 assistantActiveRef.current = true;
                 const wakeTranscript = matchedWakeWordTranscript || matchedTranscript || transcript;
+                const assistantNamePattern = assistantNameLabelRef.current
+                    ? new RegExp(escapeRegExp(assistantNameLabelRef.current), "ig")
+                    : null;
                 const cleanedCommand = wakeTranscript
-                    .replace(new RegExp(userData.assistantName, "ig"), "")
+                    .replace(assistantNamePattern || /$^/, "")
                     .trim();
 
                 if (!cleanedCommand) {
                     console.log("assistant activated");
+                    setAssistantReply(ACTIVATION_RESPONSE);
+                    speakAssistantResponse(ACTIVATION_RESPONSE);
+                    setListeningState("Assistant activated. Waiting for your command...");
                     return;
                 }
 
@@ -392,20 +447,33 @@ const Home = () => {
         recognition.onerror = (event) => {
             if (event.error !== "no-speech") {
                 console.log("speech error:", event.error);
+                setListeningState(`Microphone error: ${event.error}`);
+                return;
             }
+
+            setListeningState(
+                assistantNameLabelRef.current
+                    ? `Listening for ${assistantNameLabelRef.current}`
+                    : "Listening..."
+            );
         };
 
         recognition.onend = () => {
             recognitionRunningRef.current = false;
-            if (!isAssistantSpeakingRef.current) {
+            if (!isAssistantSpeakingRef.current && shouldAutoRestartRef.current) {
+                setListeningState("Reconnecting microphone...");
                 scheduleRecognitionRestart();
+                return;
             }
+
+            setListeningState("Microphone paused");
         };
 
         startRecognitionSafely();
 
         return () => {
             recognition.onend = null;
+            shouldAutoRestartRef.current = false;
             assistantActiveRef.current = false;
             recognitionRunningRef.current = false;
             window.clearTimeout(recognitionRestartTimeoutRef.current);
@@ -422,53 +490,99 @@ const Home = () => {
             isAssistantSpeakingRef.current = false;
             setIsAssistantSpeaking(false);
         };
-    }, [])
+    }, [serverUrl])
     return (
-        <div className='w-full min-h-[100vh] bg-gradient-to-t from-[black] to-[#09094d] flex justify-center items-center flex-col p-[20px] relative overflow-hidden'>
+        <div className='relative w-full min-h-screen overflow-hidden bg-gradient-to-t from-[black] to-[#09094d] px-4 py-5 sm:px-6 sm:py-6 lg:px-8'>
             <div className={`assistant-aura ${isAssistantSpeaking ? "assistant-aura-active" : ""}`} />
 
-            <button
-                className='absolute min-w-[150px] h-[60px] mt-[30px] text-black font-semibold bg-white right-[20px] p-[10px] rounded-full top-[20px] text-[20px] hover:text-blue-200 cursor-pointer'
-                onClick={() => Logout()}
-            >
-                Log out
-            </button>
+            <div className='relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-6 lg:gap-8'>
+                <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
+                    <div className='w-full max-w-xl rounded-[1.75rem] border border-white/15 bg-black/35 p-4 shadow-2xl shadow-cyan-950/20 backdrop-blur-sm sm:p-5'>
+                        <div className='flex flex-col gap-3'>
+                            <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                                <div>
+                                    <p className='text-xs font-semibold uppercase tracking-[0.3em] text-cyan-200/70'>Voice Control</p>
+                                    <h2 className='text-lg font-semibold text-white sm:text-xl'>
+                                        {userData?.assistantName || "Assistant microphone"}
+                                    </h2>
+                                </div>
+                                <button
+                                    className='rounded-full border border-white/25 bg-white/90 px-5 py-3 text-sm font-semibold text-black transition hover:bg-blue-100'
+                                    onClick={() => {
+                                        if (isMicEnabled) {
+                                            stopRecognition();
+                                            return;
+                                        }
 
-            <button
-                className='absolute min-w-[150px] h-[60px] mt-[30px] text-black font-semibold bg-white right-[20px] p-[10px] rounded-full top-[100px] text-[20px] hover:text-blue-200 cursor-pointer'
-                onClick={() =>
-                    navigate("/customize", {
-                        state: { allowAssistantCustomization: true },
-                    })
-                }
-            >
-                Customize Your Assistant
-            </button>
+                                        enableRecognition();
+                                    }}
+                                >
+                                    {isMicEnabled ? "Pause Microphone" : "Start Microphone"}
+                                </button>
+                            </div>
 
-            <button
-                disabled={deleteLoading}
-                className='absolute min-w-[150px] h-[60px] mt-[30px] text-white font-semibold bg-red-600 right-[20px] p-[10px] rounded-full top-[180px] text-[20px] hover:bg-red-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70'
-                onClick={handleDeleteAccount}
-            >
-                {deleteLoading ? "Deleting..." : "Delete Account"}
-            </button>
+                            <p className='rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white/90 backdrop-blur-sm sm:text-base'>
+                                {listeningState}
+                            </p>
 
-            <button
-                className='absolute min-w-[150px] h-[60px] mt-[30px] text-black font-semibold bg-yellow-300 right-[20px] p-[10px] rounded-full top-[260px] text-[20px] hover:bg-yellow-200 cursor-pointer'
-                onClick={handleNewSession}
-            >
-                New Session
-            </button>
+                            {lastHeardText && (
+                                <p className='rounded-2xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100 backdrop-blur-sm sm:text-base'>
+                                    Heard: {lastHeardText}
+                                </p>
+                            )}
+                        </div>
+                    </div>
 
-            <div className={`relative z-10 w-[300px] h-[400px] flex justify-center items-center overflow-hidden rounded-3xl shadow-lg transition-all duration-300 ${isAssistantSpeaking ? "shadow-cyan-400/60 scale-[1.02]" : ""}`}>
+                    <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-1'>
+                        <button
+                            className='min-h-12 rounded-full bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-blue-100 sm:text-base'
+                            onClick={() => Logout()}
+                        >
+                            Log out
+                        </button>
 
-                <img src={userData?.assistantImage} alt="" className='h-full object-cover' />
+                        <button
+                            className='min-h-12 rounded-full bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-blue-100 sm:text-base'
+                            onClick={() =>
+                                navigate("/customize", {
+                                    state: { allowAssistantCustomization: true },
+                                })
+                            }
+                        >
+                            Customize
+                        </button>
 
+                        <button
+                            disabled={deleteLoading}
+                            className='min-h-12 rounded-full bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-70 sm:text-base'
+                            onClick={handleDeleteAccount}
+                        >
+                            {deleteLoading ? "Deleting..." : "Delete Account"}
+                        </button>
+
+                        <button
+                            className='min-h-12 rounded-full bg-yellow-300 px-4 py-3 text-sm font-semibold text-black transition hover:bg-yellow-200 sm:text-base'
+                            onClick={handleNewSession}
+                        >
+                            New Session
+                        </button>
+                    </div>
+                </div>
+
+                <div className='flex flex-1 flex-col items-center justify-center gap-4 pb-4 pt-2 sm:gap-5 sm:pt-4 lg:pt-6'>
+                    <div className={`relative z-10 aspect-[3/4] w-full max-w-[18rem] overflow-hidden rounded-[2rem] shadow-lg transition-all duration-300 sm:max-w-[20rem] ${isAssistantSpeaking ? "shadow-cyan-400/60 scale-[1.02]" : ""}`}>
+                        <img src={userData?.assistantImage} alt={userData?.assistantName || "Assistant"} className='h-full w-full object-cover' />
+                    </div>
+
+                    <h1 className='text-center text-2xl text-white sm:text-3xl lg:text-4xl'>
+                        I&apos;m {userData?.assistantName}
+                    </h1>
+
+                    <p className='relative z-10 max-w-2xl text-center text-sm text-white/80 sm:text-base lg:text-lg'>
+                        {assistantReply || "Say the assistant name once to activate it."}
+                    </p>
+                </div>
             </div>
-            <h1 className='text-white text-2xl  mt-4'>I' m {userData?.assistantName}</h1>
-            <p className='relative z-10 mt-3 max-w-xl text-center text-sm text-white/80 sm:text-base'>
-                {assistantReply || "Say the assistant name once to activate it."}
-            </p>
         </div>
     )
 }
