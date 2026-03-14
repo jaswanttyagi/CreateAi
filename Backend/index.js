@@ -10,6 +10,7 @@ const { uploadToCloudinary } = require("./config/cloudinary");
 const authRoutes = require("./routes/route");
 const userRouter = require("./routes/userroute");
 const {
+  clientUrls,
   corsOptionsDelegate,
   getMissingEnvVars,
   isProduction,
@@ -80,6 +81,7 @@ const startServer = async () => {
     serveFrontend();
 
     app.listen(port, () => {
+      console.log(`Allowed client origins: ${clientUrls.join(", ")}`);
       console.log(`Server is running on port ${port}`);
     });
   } catch (error) {
