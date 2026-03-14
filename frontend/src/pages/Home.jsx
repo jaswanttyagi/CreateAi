@@ -209,19 +209,20 @@ const Home = () => {
     const [assistantReply, setAssistantReply] = useState("");
     const [isAssistantActive, setIsAssistantActive] = useState(false);
     const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
-    const [isMicEnabled, setIsMicEnabled] = useState(true);
-    const [listeningState, setListeningState] = useState("Starting microphone...");
+    const [isMicEnabled, setIsMicEnabled] = useState(false);
+    const [listeningState, setListeningState] = useState("Tap Start Microphone to enable voice control.");
     const [lastHeardText, setLastHeardText] = useState("");
     const recognitionRef = useRef(null);
     const assistantActiveRef = useRef(false);
     const isHandlingCommandRef = useRef(false);
     const isAssistantSpeakingRef = useRef(false);
     const recognitionRunningRef = useRef(false);
+    const recognitionStopExpectedRef = useRef(false);
     const recognitionRestartTimeoutRef = useRef(null);
     const assistantActionWindowRef = useRef(null);
     const customAudioRef = useRef(null);
-    const microphoneStreamRef = useRef(null);
-    const shouldAutoRestartRef = useRef(true);
+    const hasMicPermissionRef = useRef(false);
+    const shouldAutoRestartRef = useRef(false);
     const assistantNameRef = useRef(normalizeSpeechText(userData?.assistantName || ""));
     const assistantNameLabelRef = useRef(String(userData?.assistantName || "").trim());
     const assistantDisplayName = userData?.assistantName || "Assistant";
@@ -232,18 +233,8 @@ const Home = () => {
         setIsAssistantActive(isActive);
     };
 
-    const releaseMicrophoneStream = () => {
-        const activeStream = microphoneStreamRef.current;
-        if (!activeStream) {
-            return;
-        }
-
-        activeStream.getTracks().forEach((track) => track.stop());
-        microphoneStreamRef.current = null;
-    };
-
     const ensureMicrophoneAccess = async () => {
-        if (microphoneStreamRef.current?.active) {
+        if (hasMicPermissionRef.current) {
             return true;
         }
 
@@ -261,7 +252,8 @@ const Home = () => {
                     autoGainControl: true,
                 },
             });
-            microphoneStreamRef.current = stream;
+            stream.getTracks().forEach((track) => track.stop());
+            hasMicPermissionRef.current = true;
             return true;
         } catch (error) {
             console.log("microphone access failed:", error.message);
@@ -314,8 +306,8 @@ const Home = () => {
         setListeningState("Microphone paused");
         window.clearTimeout(recognitionRestartTimeoutRef.current);
         recognitionRunningRef.current = false;
+        recognitionStopExpectedRef.current = true;
         recognitionRef.current?.stop();
-        releaseMicrophoneStream();
     };
 
     const enableRecognition = () => {
@@ -382,6 +374,7 @@ const Home = () => {
 
         if (recognitionRef.current) {
             recognitionRunningRef.current = false;
+            recognitionStopExpectedRef.current = true;
             recognitionRef.current.stop();
         }
 
@@ -420,6 +413,7 @@ const Home = () => {
 
         if (recognitionRef.current) {
             recognitionRunningRef.current = false;
+            recognitionStopExpectedRef.current = true;
             recognitionRef.current.stop();
         }
 
@@ -553,8 +547,8 @@ const Home = () => {
             setIsAssistantSpeaking(false);
             scheduleRecognitionRestart();
         };
-        recognition.continuous = true;
-        recognition.interimResults = true;
+        recognition.continuous = false;
+        recognition.interimResults = false;
         recognition.maxAlternatives = 5;
         recognition.lang = getPreferredRecognitionLanguage();
 
@@ -587,6 +581,7 @@ const Home = () => {
         };
 
         recognition.onstart = () => {
+            recognitionStopExpectedRef.current = false;
             recognitionRunningRef.current = true;
             setIsMicEnabled(true);
             setListeningState(
@@ -665,6 +660,10 @@ const Home = () => {
         recognition.onerror = (event) => {
             console.log("speech error:", event.error);
 
+            if (event.error === "aborted" && recognitionStopExpectedRef.current) {
+                return;
+            }
+
             if (event.error === "no-speech") {
                 setListeningState("No speech detected. Try speaking a little louder or closer to the mic.");
                 return;
@@ -673,13 +672,13 @@ const Home = () => {
             if (event.error === "not-allowed" || event.error === "service-not-allowed") {
                 shouldAutoRestartRef.current = false;
                 setIsMicEnabled(false);
-                releaseMicrophoneStream();
+                hasMicPermissionRef.current = false;
                 setListeningState("Microphone permission is blocked. Please allow microphone access in the browser.");
                 return;
             }
 
             if (event.error === "audio-capture") {
-                releaseMicrophoneStream();
+                hasMicPermissionRef.current = false;
                 setListeningState("No microphone input was found. Check your browser microphone device.");
                 return;
             }
@@ -688,7 +687,15 @@ const Home = () => {
         };
 
         recognition.onend = () => {
+            const shouldIgnoreAbort = recognitionStopExpectedRef.current;
+            recognitionStopExpectedRef.current = false;
             recognitionRunningRef.current = false;
+
+            if (shouldIgnoreAbort && !shouldAutoRestartRef.current) {
+                setListeningState("Microphone paused");
+                return;
+            }
+
             if (!isAssistantSpeakingRef.current && shouldAutoRestartRef.current) {
                 setListeningState("Reconnecting microphone...");
                 scheduleRecognitionRestart();
@@ -698,7 +705,9 @@ const Home = () => {
             setListeningState("Microphone paused");
         };
 
-        void startRecognitionSafely();
+        if (!shouldAutoRestartRef.current) {
+            setListeningState("Tap Start Microphone to enable voice control.");
+        }
 
         return () => {
             recognition.onend = null;
@@ -706,9 +715,10 @@ const Home = () => {
             updateAssistantActiveState(false);
             isHandlingCommandRef.current = false;
             recognitionRunningRef.current = false;
+            recognitionStopExpectedRef.current = true;
             window.clearTimeout(recognitionRestartTimeoutRef.current);
             recognition.stop();
-            releaseMicrophoneStream();
+            hasMicPermissionRef.current = false;
             if (window.speechSynthesis) {
                 window.speechSynthesis.cancel();
             }
@@ -826,6 +836,7 @@ const Home = () => {
                         <div className='cinema-panel cinema-panel-tilt p-5 sm:p-6'>
                             <p className='cinema-kicker'>Wake Protocol</p>
                             <div className='mt-4 space-y-3 text-sm text-white/72 sm:text-base'>
+                                <p>Tap <span className='font-semibold text-white'>Start Microphone</span> once to arm voice control on mobile and desktop browsers.</p>
                                 <p>Say <span className='font-semibold text-white'>{assistantDisplayName}</span> to activate the assistant.</p>
                                 <p>When it wakes, it replies: <span className='font-semibold text-cyan-100'>{ACTIVATION_RESPONSE}</span></p>
                                 <p>Say <span className='font-semibold text-white'>stop listening</span> to drop back into standby mode.</p>
