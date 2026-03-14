@@ -40,49 +40,71 @@ const Customzize2 = () => {
         }
     }
     return (
-        <div className='min-h-screen w-full bg-gradient-to-t from-[black] to-[#09094d] px-4 py-6 sm:px-6 sm:py-8 lg:px-8'>
-            <div className='mx-auto flex w-full max-w-4xl flex-col gap-6'>
-                <div className='flex items-center gap-3'>
-                    <button
-                        type="button"
-                        className='flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/20'
-                        onClick={() =>
-                            navigate("/customize", {
-                                state: isEditingAssistant
-                                    ? { allowAssistantCustomization: true }
-                                    : null,
-                            })
-                        }
-                    >
-                        <IoMdArrowRoundBack className='h-6 w-6' />
-                    </button>
-                    <div>
-                        <p className='text-xs font-semibold uppercase tracking-[0.32em] text-cyan-200/70'>Step 2</p>
-                        <h1 className='text-2xl font-bold text-white sm:text-3xl lg:text-4xl'>
-                            Enter your <span className="text-blue-400">assistant&apos;s name</span>
-                        </h1>
+        <div className='scene-shell px-4 py-5 sm:px-6 sm:py-6 lg:px-8'>
+            <div className='relative z-10 mx-auto grid w-full max-w-6xl gap-6 xl:grid-cols-[1.1fr_0.9fr]'>
+                <section className='cinema-panel cinema-panel-strong p-5 sm:p-7 lg:p-8'>
+                    <div className='flex items-start gap-4'>
+                        <button
+                            type="button"
+                            className='holo-button-secondary flex h-11 w-11 items-center justify-center p-0 text-white'
+                            onClick={() =>
+                                navigate("/customize", {
+                                    state: isEditingAssistant
+                                        ? { allowAssistantCustomization: true }
+                                        : null,
+                                })
+                            }
+                        >
+                            <IoMdArrowRoundBack className='h-6 w-6' />
+                        </button>
+                        <div className='space-y-4'>
+                            <p className='cinema-kicker'>Voice Identity // Step 02</p>
+                            <h1 className='cinema-heading max-w-3xl'>
+                                Give your assistant a <span className='text-cyan-300'>wake phrase</span> worth listening for.
+                            </h1>
+                            <p className='cinema-copy'>
+                                A short, clean name works best. The assistant uses this name as its activation trigger, so clear syllables make the voice experience feel sharper and more reliable across mobile and desktop microphones.
+                            </p>
+                            <div className='flex flex-wrap gap-3'>
+                                <span className='status-pill status-pill-cyan'>Wake-word tuned</span>
+                                <span className='status-pill status-pill-blue'>Voice-first flow</span>
+                                <span className='status-pill status-pill-amber'>Cross-device ready</span>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <div className='rounded-[2rem] border border-white/15 bg-black/30 p-5 shadow-2xl shadow-blue-950/20 backdrop-blur-sm sm:p-8'>
-                    <div className='mx-auto flex w-full max-w-2xl flex-col gap-4'>
-                        <p className='text-sm text-white/75 sm:text-base'>
-                            Choose a name that is easy to pronounce so wake-word detection works better on phones, tablets, and desktops.
-                        </p>
-
+                    <div className='mt-8 rounded-[1.9rem] border border-white/10 bg-[rgba(5,10,22,0.58)] p-4 shadow-[0_24px_60px_rgba(2,6,23,0.35)] sm:p-6'>
+                        <label className='mb-3 block text-sm font-semibold uppercase tracking-[0.22em] text-cyan-100/80'>
+                            Assistant Name
+                        </label>
                         <input
                             type="text"
                             placeholder='eg. Jarvis'
                             required
                             value={assistantname}
                             onChange={(e)=>setAssistantname(e.target.value)}
-                            className='w-full rounded-2xl border border-white/25 bg-white/95 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40 sm:px-5 sm:py-4 sm:text-base'
+                            className='cinema-input'
                         />
+
+                        <div className='mt-4 grid gap-3 sm:grid-cols-2'>
+                            <div className='cinema-panel p-4'>
+                                <p className='cinema-kicker'>Wake Preview</p>
+                                <p className='mt-3 text-lg font-semibold text-white sm:text-xl'>
+                                    {assistantname ? `${assistantname}, are you online?` : "Choose a name to preview the wake phrase."}
+                                </p>
+                            </div>
+                            <div className='cinema-panel p-4'>
+                                <p className='cinema-kicker'>Activation Reply</p>
+                                <p className='mt-3 text-lg font-semibold text-white sm:text-xl'>
+                                    I am activated. Ask me anything.
+                                </p>
+                            </div>
+                        </div>
 
                         {assistantname && (
                             <button
                                 disabled={loading}
-                                className='min-h-12 w-full rounded-full bg-white px-6 py-3 text-base font-semibold text-black transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-70 sm:text-lg'
+                                className='holo-button mt-6 w-full text-sm disabled:cursor-not-allowed disabled:opacity-70 sm:text-base'
                                 onClick={()=>{
                                     handleAssistant()
                                 }}
@@ -91,7 +113,32 @@ const Customzize2 = () => {
                             </button>
                         )}
                     </div>
-                </div>
+                </section>
+
+                <aside className='cinema-panel cinema-panel-tilt p-5 sm:p-6'>
+                    <p className='cinema-kicker'>Cinematic Preview</p>
+                    <div className='assistant-stage mt-4 p-6 sm:p-8'>
+                        <div className='assistant-orbit' />
+                        <div className='assistant-orbit-secondary' />
+                        <div className='assistant-orbit-tertiary' />
+                        <div className='assistant-portrait'>
+                            <div className='flex h-full w-full items-end justify-start bg-[radial-gradient(circle_at_top,_rgba(125,211,252,0.2),_transparent_40%),linear-gradient(180deg,_rgba(10,18,34,0.95),_rgba(4,8,18,0.92))] p-5'>
+                                <div className='space-y-2'>
+                                    <span className='rounded-full border border-white/20 bg-black/35 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-cyan-100'>
+                                        Voice Persona
+                                    </span>
+                                    <p className='text-2xl font-semibold text-white sm:text-3xl'>
+                                        {assistantname || "Assistant"}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className='floating-glow' />
+                    </div>
+                    <p className='cinema-copy mt-4 max-w-none text-sm sm:text-base'>
+                        Keep the name distinct from common background words so the assistant wakes up cleanly and feels more cinematic when it responds.
+                    </p>
+                </aside>
             </div>
         </div>
     )
