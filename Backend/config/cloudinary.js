@@ -2,7 +2,23 @@ const cloud = require("cloudinary").v2;
 const fs = require("fs");
 require("./env");
 
+const hasCloudinaryCredentials = () =>
+    Boolean(process.env.CLOUD_NAME && process.env.API_KEY && process.env.API_SECRET);
+
 const uploadToCloudinary = async (filepath) => {
+    if (!hasCloudinaryCredentials()) {
+        if (!filepath) {
+            console.warn(
+                "Cloudinary credentials are missing. Custom assistant image uploads will stay unavailable until CLOUD_NAME, API_KEY, and API_SECRET are set."
+            );
+            return null;
+        }
+
+        throw new Error(
+            "Cloudinary credentials are missing. Set CLOUD_NAME, API_KEY, and API_SECRET before uploading custom assistant images."
+        );
+    }
+
     cloud.config({
         cloud_name: process.env.CLOUD_NAME,
         api_key: process.env.API_KEY,

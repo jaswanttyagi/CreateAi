@@ -8,6 +8,9 @@ const AUTH_STORAGE_KEY = "cerateai-user";
 const SESSION_STORAGE_KEY = "cerateai-session";
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 const MAX_SESSION_MESSAGES = 12;
+const SERVER_URL = String(import.meta.env.VITE_API_BASE_URL || "")
+  .trim()
+  .replace(/\/+$/, "");
 
 const createSessionId = () =>
   `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -63,7 +66,7 @@ const getStoredSession = () => {
 };
 
 function Usercontext({ children }) {
-  const serverUrl = "http://localhost:4500";
+  const serverUrl = SERVER_URL;
   const [userData, setUserData] = useState(() => getStoredUser());
   const [sessionState, setSessionState] = useState(() => getStoredSession());
   const [frontendImage, setFrontendImage] = useState(null);

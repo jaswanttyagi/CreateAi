@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: cerateai-backend
+    runtime: node
+    rootDir: Backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: COOKIE_SAME_SITE
+        sync: false
+      - key: COOKIE_SECURE
+        sync: false
+      - key: CLOUD_NAME
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: API_SECRET
+        sync: false

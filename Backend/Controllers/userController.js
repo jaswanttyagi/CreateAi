@@ -3,6 +3,7 @@ const User  = require("../models/usermodel.js");
 const geminiResponse = require("../gemini.js").default;
 const { geminiTextResponse } = require("../gemini.js");
 const moment = require("moment");
+const { clearAuthCookie } = require("../config/runtime");
 
 const MAX_CONVERSATION_HISTORY = 12;
 const MAX_LEGACY_HISTORY = 20;
@@ -1093,12 +1094,7 @@ const deleteAccount = async(req , res)=>{
             return res.status(404).json({message : "User not found"});
         }
 
-        res.clearCookie("token", {
-            httpOnly: true,
-            sameSite: "lax",
-            secure: false,
-            path: "/",
-        });
+        clearAuthCookie(res);
 
         return res.status(200).json({message : "Account deleted successfully"});
     }catch(err){

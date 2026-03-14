@@ -2,9 +2,16 @@
   "name": "cerateai-workspace",
   "private": true,
   "scripts": {
+    "build": "npm run install:all && npm run build:frontend",
+    "build:frontend": "npm --prefix frontend run build",
     "dev": "concurrently -n \"frontend,backend\" -c \"blue,green\" \"npm --prefix frontend run dev\" \"npm --prefix Backend run dev\"",
+    "install:all": "npm run install:backend && npm run install:frontend",
+    "install:backend": "npm --prefix Backend ci --omit=dev",
+    "install:frontend": "npm --prefix frontend ci --include=dev",
+    "start": "npm --prefix Backend start",
     "dev:frontend": "npm --prefix frontend run dev",
-    "dev:backend": "npm --prefix Backend run dev"
+    "dev:backend": "npm --prefix Backend run dev",
+    "start:backend": "npm --prefix Backend start"
   },
   "dependencies": {
     "concurrently": "^9.2.1",

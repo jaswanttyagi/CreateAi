@@ -1,14 +1,7 @@
 const User  = require("../models/usermodel.js");
 const { genToken } = require("./genToken.js");
 const bcrypt = require("bcrypt");
-
-const authCookieOptions = {
-    httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    sameSite: "lax",
-    secure: false,
-    path: "/",
-};
+const { authCookieOptions, clearAuthCookie } = require("../config/runtime");
 
 module.exports.signUp = async(req , res)=>{
         try{
@@ -45,7 +38,7 @@ module.exports.signUp = async(req , res)=>{
         }
         const safeUser = await User.findById(user._id).select("-password");
         // Now parsing the token in cookies
-        res.clearCookie("token", authCookieOptions);
+        clearAuthCookie(res);
         res.cookie("token" , token , authCookieOptions)
         return res.status(201).json({message : "User created successfully", user: safeUser});
     }
@@ -84,7 +77,7 @@ module.exports.Login = async(req , res)=>{
         }
         const safeUser = await User.findById(user._id).select("-password");
         // Now parsing the token in cookies
-        res.clearCookie("token", authCookieOptions);
+        clearAuthCookie(res);
         res.cookie("token" , token , authCookieOptions)
         return res.status(200).json({message : "User logged in successfully", user: safeUser});
     }
@@ -100,7 +93,7 @@ module.exports = {
     Logout: async(req , res)=>{
         try{
             // if we clear the cookie then the user will be logged out
-            res.clearCookie("token", authCookieOptions);
+            clearAuthCookie(res);
             return res.status(200).json({message : "User logged out successfully"});
         }catch(err){
             console.log("Error in logout" , err);

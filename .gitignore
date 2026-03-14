@@ -1,0 +1,16 @@
+node_modules/
+Backend/node_modules/
+frontend/node_modules/
+frontend/dist/
+.vite/
+uploads/
+Backend/uploads/
+*.log
+
+.env
+.env.*
+Backend/.env
+frontend/.env
+frontend/.env.*
+!Backend/.env.example
+!frontend/.env.example

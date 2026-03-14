@@ -1,14 +1,6 @@
 const jwt = require('jsonwebtoken');
 require('../config/env');
-
-const clearAuthCookie = (res) => {
-    res.clearCookie("token", {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: false,
-        path: "/",
-    });
-};
+const { clearAuthCookie } = require("../config/runtime");
 
 const isAuth = async(req , res , next)=>{
       try{
